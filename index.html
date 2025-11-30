@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ma Trận Số (Matrix Number)</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -23,9 +25,19 @@
     <div id="game-screen" class="screen">
         <h2>🤖 Đối Đầu với BOT 🤖</h2>
         
+        <div id="status-area">
+            <p id="current-turn"></p>
+            <div id="game-inputs">
+                </div>
+            <p id="message-area"></p>
+        </div>
+
+        <div id="board" class="board-grid">
+            </div>
+        
         <button id="end-game-btn">Kết Thúc Ván</button>
     </div>
 
     <script src="script.js"></script>
 </body>
-</html>
+    </html>
