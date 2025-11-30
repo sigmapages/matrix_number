@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ma Trận Số (Matrix Number)</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="start-screen" class="screen active">
+        <h1>🎲 Ma Trận Số 🎲</h1>
+        <button onclick="showScreen('game-screen')">Chơi với Bot</button>
+        <button onclick="showScreen('guide-screen')">Luật Chơi (Guide)</button>
+    </div>
+
+    <div id="guide-screen" class="screen">
+        <h2>📚 Luật Chơi Ma Trận Số 📚</h2>
+        <div class="rules">
+            <p>**Lưu ý:** Luật chơi chi tiết sẽ được hiển thị tại đây.</p>
+        </div>
+        <button onclick="showScreen('start-screen')">Quay Lại</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <h2>🤖 Đối Đầu với BOT 🤖</h2>
+        
+        <div id="status-area">
+            <p id="current-turn">Lượt của Người chơi A (Chọn số)</p>
+            <div id="game-inputs">
+                </div>
+            <p id="message-area"></p>
+        </div>
+
+        <div id="board" class="board-grid">
+            </div>
+
+        <button onclick="showScreen('start-screen')">Kết Thúc Ván</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
