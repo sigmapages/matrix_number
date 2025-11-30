@@ -4,7 +4,7 @@ const MAX_VALUE = 9;
 
 let board = [];
 let turn = 'A'; // 'A' (Human) or 'B' (Bot)
-let gameState = 'CHOOSE_NUMBERS'; // 'CHOOSE_NUMBERS', 'CHOOSE_OP', 'EXECUTE_ACTION'
+let gameState = 'CHOOSE_NUMBERS'; // 'CHOOSE_NUMBERS', 'CHOOSE_OP', 'EXECUTE_ACTION', 'GAME_OVER'
 
 let chosenNumbers = { num1: null, num2: null };
 let calculatedResult = { value: null, action: null };
@@ -46,7 +46,7 @@ function initGame() {
             cell.classList.add('cell');
             cell.dataset.row = r;
             cell.dataset.col = c;
-            cell.onclick = () => handleCellClick(r, c);
+            cell.addEventListener('click', () => handleCellClick(r, c)); // Sử dụng Event Listener
             boardElement.appendChild(cell);
         }
     }
@@ -63,7 +63,17 @@ function initGame() {
 function updateGameDisplay() {
     // 1. Cập nhật thông báo lượt chơi
     const turnMessage = turn === 'A' ? 'NGƯỜI CHƠI (Bạn)' : 'BOT (Đối thủ)';
-    const statusMessage = currentActor === 'A' ? `Lượt của BẠN (Chọn số)` : `Lượt của BOT (Chọn phép tính)`;
+    let statusMessage = '';
+
+    if (gameState === 'CHOOSE_NUMBERS' || gameState === 'CHOOSE_OP') {
+        statusMessage = currentActor === 'A' ? `Lượt của BẠN (Chọn số)` : `Lượt của BOT (Chọn phép tính)`;
+    } else if (gameState === 'EXECUTE_ACTION') {
+        const actor = currentActor === 'A' ? 'Bạn' : 'BOT';
+        statusMessage = `${actor}: Đang thực hiện hành động ${calculatedResult.action}. **Hãy click vào ô.**`;
+    } else {
+        statusMessage = 'Ván đấu kết thúc. Bấm "Kết Thúc Ván" để chơi lại.';
+    }
+
     document.getElementById('current-turn').textContent = statusMessage;
 
     // 2. Cập nhật bàn cờ
@@ -101,7 +111,7 @@ function advanceTurn() {
             if (board[r][c].lockedTurns > 0) {
                 board[r][c].lockedTurns--;
                 if (board[r][c].lockedTurns === 0) {
-                    // Nếu hết thời gian khóa, reset ô
+                    // Nếu hết thời gian khóa, reset ô (nếu nó đang bị khóa)
                     board[r][c].owner = null; 
                     board[r][c].value = null;
                 }
@@ -118,7 +128,6 @@ function advanceTurn() {
     if (turn === 'A') {
         handleTurnA_ChooseNumbers();
     } else {
-        // Tắt input người dùng khi bot chơi
         setTimeout(botTurn_ChooseNumbers, 1000); 
     }
 
@@ -132,9 +141,12 @@ function handleTurnA_ChooseNumbers() {
     document.getElementById('game-inputs').innerHTML = `
         <input type="number" id="num1" min="1" max="9" value="5" placeholder="Số 1 (1-9)">
         <input type="number" id="num2" min="1" max="9" value="3" placeholder="Số 2 (1-9)">
-        <button onclick="submitNumbers()">Xác nhận số</button>
+        <button id="submit-numbers-btn">Xác nhận số</button>
     `;
     updateMessage('Bạn: Chọn 2 số bí mật của bạn (1-9).');
+
+    // Gán listener cho nút vừa được tạo ra
+    document.getElementById('submit-numbers-btn').addEventListener('click', submitNumbers);
 }
 
 function submitNumbers() {
@@ -183,6 +195,7 @@ function botTurn_ChooseOperation() {
 
     // 2. Chuyển sang lượt BOT thực hiện hành động
     gameState = 'EXECUTE_ACTION';
+    document.getElementById('game-inputs').innerHTML = ''; // Xóa input cũ
     updateGameDisplay();
     setTimeout(botExecuteAction, 1500);
 }
@@ -198,9 +211,12 @@ function handleTurnA_ChooseOperation() {
             <option value="*">Nhân (*)</option>
             <option value="/">Chia (/)</option>
         </select>
-        <button onclick="submitOperation()">Xác nhận phép tính</button>
+        <button id="submit-op-btn">Xác nhận phép tính</button>
     `;
     updateMessage('Bạn: Chọn phép tính cho 2 số trên.');
+
+    // Gán listener cho nút vừa được tạo ra
+    document.getElementById('submit-op-btn').addEventListener('click', submitOperation);
 }
 
 function submitOperation() {
@@ -241,9 +257,9 @@ function calculateResultAndAction(op) {
     if (Number.isInteger(resultValue)) {
         if (resultValue < 0) {
             actionType = 'ERASE';
+            resultValue = Math.abs(resultValue); // Dùng giá trị tuyệt đối cho dễ hiển thị
         } else if (resultValue > MAX_VALUE) {
             actionType = 'LOCK';
-            resultValue = resultValue; // Giữ giá trị lớn để hiển thị
         } else {
             actionType = 'PLACE';
         }
@@ -271,17 +287,18 @@ function handleCellClick(r, c) {
 
     // Xử lý logic theo hành động
     if (action === 'PLACE') {
-        if (cell.value === null) {
+        if (cell.value === null && cell.lockedTurns === 0) {
             cell.value = value;
             cell.owner = currentActor;
             advanceTurn();
         } else {
-            updateMessage('Ô này đã có số. Vui lòng chọn ô trống.', true);
+            updateMessage('Ô này không hợp lệ (đã có số hoặc bị khóa). Vui lòng chọn ô trống.', true);
         }
     } else if (action === 'ERASE') {
         if (cell.owner === 'B') {
             cell.value = null;
             cell.owner = null;
+            updateMessage(`Bạn: Đã xóa ô [${r},${c}] của BOT.`);
             advanceTurn();
         } else {
             updateMessage('Chỉ có thể xóa ô của đối thủ (BOT).', true);
@@ -296,18 +313,19 @@ function handleCellClick(r, c) {
                 updateGameDisplay();
             } else {
                 cell.value = newValue;
+                updateMessage(`Bạn: Đã cộng dồn ${value} vào ô [${r},${c}].`);
                 advanceTurn();
             }
         } else {
             updateMessage('Chỉ có thể cộng dồn vào ô của mình.', true);
         }
     } else if (action === 'LOCK') {
-        if (cell.value === null) {
+        if (cell.value === null && cell.lockedTurns === 0) {
             cell.lockedTurns = 2; // Khóa 2 lượt
-            updateMessage(`Đã khóa ô [${r},${c}]. Nó sẽ mở lại sau 2 lượt.`);
+            updateMessage(`Bạn: Đã khóa ô [${r},${c}]. Nó sẽ mở lại sau 2 lượt.`);
             advanceTurn();
         } else {
-            updateMessage('Chỉ có thể khóa ô trống.', true);
+            updateMessage('Chỉ có thể khóa ô trống chưa bị khóa.', true);
         }
     }
 }
@@ -317,52 +335,50 @@ function handleCellClick(r, c) {
 function botExecuteAction() {
     const { action, value } = calculatedResult;
     let targetCell = null;
+    let availableCells = [];
 
-    // Logic BOT đơn giản: tìm ô hợp lệ đầu tiên
+    // Tìm tất cả các ô hợp lệ
     for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
             const cell = board[r][c];
-            if (action === 'PLACE' && cell.value === null && cell.lockedTurns === 0) {
-                targetCell = { r, c };
-                break;
-            }
-            if (action === 'ERASE' && cell.owner === 'A') { // Bot xóa ô của người
-                targetCell = { r, c };
-                break;
-            }
-            if (action === 'UPGRADE' && cell.owner === 'B' && cell.value !== null) {
-                targetCell = { r, c };
-                break;
-            }
-            if (action === 'LOCK' && cell.value === null && cell.lockedTurns === 0) {
-                targetCell = { r, c };
-                break;
-            }
+            if (action === 'PLACE' && cell.value === null && cell.lockedTurns === 0) availableCells.push({ r, c });
+            if (action === 'ERASE' && cell.owner === 'A') availableCells.push({ r, c }); 
+            if (action === 'UPGRADE' && cell.owner === 'B' && cell.value !== null) availableCells.push({ r, c });
+            if (action === 'LOCK' && cell.value === null && cell.lockedTurns === 0) availableCells.push({ r, c });
         }
-        if (targetCell) break;
     }
 
-    if (targetCell) {
+    if (availableCells.length > 0) {
+        // BOT chọn ngẫu nhiên trong số các ô hợp lệ
+        targetCell = availableCells[Math.floor(Math.random() * availableCells.length)];
+        
         const { r, c } = targetCell;
         const cell = board[r][c];
         
-        if (action === 'PLACE') cell.value = value; cell.owner = 'B';
-        else if (action === 'ERASE') cell.value = null; cell.owner = null;
-        else if (action === 'UPGRADE') {
+        // Thực hiện hành động
+        if (action === 'PLACE') {
+            cell.value = value; cell.owner = 'B';
+        } else if (action === 'ERASE') {
+            cell.value = null; cell.owner = null;
+        } else if (action === 'UPGRADE') {
             const newValue = cell.value + value;
             if (newValue > MAX_VALUE) {
-                 // Bot cũng áp dụng luật khóa ô
+                 // Bot cũng áp dụng luật khóa ô nếu UPGRADE thất bại
                 cell.lockedTurns = 2;
                 updateMessage(`BOT: Cộng dồn vượt quá 9, BOT đã khóa ô [${r},${c}].`);
+                advanceTurn(); // Tiến lượt ngay sau khi khóa
+                return;
             } else {
                 cell.value = newValue;
             }
         }
-        else if (action === 'LOCK') cell.lockedTurns = 2; 
+        else if (action === 'LOCK') {
+            cell.lockedTurns = 2;
+        }
 
         updateMessage(`BOT đã thực hiện hành động ${action} tại ô [${r},${c}].`);
     } else {
-        updateMessage(`BOT: Không tìm thấy ô hợp lệ cho hành động ${action}.`, true);
+        updateMessage(`BOT: Không tìm thấy ô hợp lệ cho hành động ${action}. BOT nhường lượt.`);
     }
     
     advanceTurn();
@@ -371,27 +387,30 @@ function botExecuteAction() {
 // --- WIN CONDITION CHECK ---
 
 function checkWinCondition() {
+    if (gameState === 'GAME_OVER') return true;
+
     const win = check2x2Consecutive();
     if (win) {
-        // Có người thắng theo luật 2x2
         updateMessage(`🎉🎉🎉 CHÚC MỪNG ${win === 'A' ? 'BẠN' : 'BOT'} ĐÃ TẠO ĐƯỢC MA TRẬN 2x2 LIÊN TIẾP VÀ CHIẾN THẮNG! 🎉🎉🎉`, false);
         gameState = 'GAME_OVER';
-        document.getElementById('game-inputs').innerHTML = `<button onclick="showScreen('start-screen')">Ván mới</button>`;
+        document.getElementById('game-inputs').innerHTML = `<button id="new-game-btn" class="active">Ván mới</button>`;
+        document.getElementById('new-game-btn').addEventListener('click', () => showScreen('start-screen'));
         return true;
     }
 
     // Kiểm tra bàn cờ kín (Luật Thắng Tính Tổng)
-    const isFull = board.flat().every(cell => cell.value !== null);
+    const isFull = board.flat().every(cell => cell.value !== null || cell.lockedTurns > 0);
     if (isFull) {
         const scoreA = board.flat().filter(cell => cell.owner === 'A').reduce((sum, cell) => sum + cell.value, 0);
         const scoreB = board.flat().filter(cell => cell.owner === 'B').reduce((sum, cell) => sum + cell.value, 0);
-        let winnerMsg = `Hòa! Điểm A: ${scoreA}, Điểm B: ${scoreB}.`;
+        let winnerMsg = `Hòa! Điểm Bạn: ${scoreA}, Điểm BOT: ${scoreB}.`;
         if (scoreA > scoreB) winnerMsg = `🎉🎉🎉 CHÚC MỪNG BẠN THẮNG! (Tổng điểm ${scoreA} > ${scoreB}) 🎉🎉🎉`;
         else if (scoreB > scoreA) winnerMsg = `BOT THẮNG! (Tổng điểm ${scoreB} > ${scoreA})`;
 
         updateMessage(winnerMsg);
         gameState = 'GAME_OVER';
-        document.getElementById('game-inputs').innerHTML = `<button onclick="showScreen('start-screen')">Ván mới</button>`;
+        document.getElementById('game-inputs').innerHTML = `<button id="new-game-btn" class="active">Ván mới</button>`;
+        document.getElementById('new-game-btn').addEventListener('click', () => showScreen('start-screen'));
         return true;
     }
     return false;
@@ -400,34 +419,54 @@ function checkWinCondition() {
 function check2x2Consecutive() {
     for (let r = 0; r <= BOARD_SIZE - 2; r++) {
         for (let c = 0; c <= BOARD_SIZE - 2; c++) {
-            // Lấy 4 ô
             const cells = [
                 board[r][c], board[r][c + 1],
                 board[r + 1][c], board[r + 1][c + 1]
             ];
             
-            // Kiểm tra xem 4 ô có cùng chủ sở hữu và không rỗng
             const owner = cells[0].owner;
             if (owner !== null && cells.every(cell => cell.owner === owner && cell.value !== null)) {
-                
-                // Lấy các giá trị và sắp xếp
                 const values = cells.map(cell => cell.value).sort((a, b) => a - b);
                 
                 // Kiểm tra 4 số liên tiếp
                 if (values[3] === values[0] + 3 && 
                     values[1] === values[0] + 1 && 
                     values[2] === values[0] + 2) {
-                    return owner; // Người chơi 'A' hoặc 'B' thắng
+                    return owner; 
                 }
             }
         }
     }
-    return null; // Chưa có ai thắng
+    return null; 
 }
 
 // --- INITIALIZATION ---
+
+function addEventListeners() {
+    // 1. Nút màn hình Start
+    document.getElementById('play-bot-btn').addEventListener('click', () => {
+        showScreen('game-screen');
+    });
+
+    document.getElementById('guide-btn').addEventListener('click', () => {
+        showScreen('guide-screen');
+    });
+
+    // 2. Nút màn hình Guide
+    document.getElementById('back-to-start-guide-btn').addEventListener('click', () => {
+        showScreen('start-screen');
+    });
+
+    // 3. Nút màn hình Game
+    document.getElementById('end-game-btn').addEventListener('click', () => {
+        showScreen('start-screen');
+    });
+    
+    // Gán Event Listeners cho các nút tĩnh
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    // Tự động hiển thị màn hình start khi tải xong
+    // Chèn luật chơi
     document.getElementById('guide-screen').querySelector('.rules').innerHTML = `
         <p><strong>Bàn cờ:</strong> 6x6. 2 người chơi (Bạn vs BOT).</p>
         <p><strong>Mục tiêu:</strong> Tạo ma trận 2x2 gồm 4 số liên tiếp nhau (Ví dụ: 4, 5, 6, 7).</p>
@@ -442,6 +481,8 @@ document.addEventListener('DOMContentLoaded', () => {
         </ul>
         <p><strong>Thắng Tính Tổng:</strong> Nếu bàn cờ kín, người có tổng điểm số đã điền cao hơn sẽ thắng.</p>
     `;
+    
+    addEventListeners(); 
     showScreen('start-screen');
 });
 
